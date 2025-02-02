@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 func main() {
-	var a, b float64
-	var operator string
-
 	for {
-		fmt.Print("Enter first number (or type 'exit' to quit): ")
+		fmt.Print("Enter expression (or type 'exit' to quit): ")
 		var input string
 		_, err := fmt.Scan(&input)
 
@@ -25,55 +25,121 @@ func main() {
 			os.Exit(0)
 		}
 
-		_, err = fmt.Sscanf(input, "%f", &a)
+		result, err := calculateExpression(input)
 		if err != nil {
-			fmt.Println("Invalid number. Please enter a valid number.")
+			fmt.Println("Invalid expression. Please enter a valid expression.")
 			continue
-		}
-
-		fmt.Print("Enter second number: ")
-		_, err = fmt.Scan(&b)
-		if err != nil {
-			log.Fatalf("Invalid input for second number: %v", err)
-		}
-
-		operator = getOperatorFromUser()
-
-		bc := calculator.BasicCalculator{}
-
-		result, err := bc.Compute(a, b, operator)
-		if err != nil {
-			log.Fatalf("Error while computing: %v", err)
 		}
 
 		printResult(result)
 	}
 }
 
-func getOperatorFromUser() string {
-	var operator string
-	for {
-		fmt.Print("Enter operator (+, -, *, /, %, ^): ")
-		_, err := fmt.Scan(&operator)
-		if err != nil {
-			log.Fatalf("Invalid input for operator: %v", err)
-		}
-		if isValidOperator(operator) {
-			return operator
-		} else {
-			fmt.Println("Invalid operator. Please enter a valid operator (+, -, *, /, %, ^).")
+func calculateExpression(expression string) (float64, error) {
+	expression = strings.TrimSpace(expression)
+
+	tokens := tokenize(expression)
+
+	var values []float64
+	var operators []string
+
+	for i := 0; i < len(tokens); i++ {
+		token := tokens[i]
+
+		if isNumber(token) {
+			value, err := strconv.ParseFloat(token, 64)
+			if err != nil {
+				return 0, fmt.Errorf("invalid number format")
+			}
+			values = append(values, value)
+		} else if isOperator(token) {
+			for len(operators) > 0 && precedence(operators[len(operators)-1]) >= precedence(token) {
+				val2 := values[len(values)-1]
+				values = values[:len(values)-1]
+				val1 := values[len(values)-1]
+				values = values[:len(values)-1]
+				operator := operators[len(operators)-1]
+				operators = operators[:len(operators)-1]
+
+				result, err := calculator.BasicCalculator{}.Compute(val1, val2, operator)
+				if err != nil {
+					return 0, fmt.Errorf("error while computing: %v", err)
+				}
+				values = append(values, result)
+			}
+			operators = append(operators, token)
+		} else if token == "(" {
+			operators = append(operators, token)
+		} else if token == ")" {
+			for len(operators) > 0 && operators[len(operators)-1] != "(" {
+				val2 := values[len(values)-1]
+				values = values[:len(values)-1]
+				val1 := values[len(values)-1]
+				values = values[:len(values)-1]
+				operator := operators[len(operators)-1]
+				operators = operators[:len(operators)-1]
+
+				result, err := calculator.BasicCalculator{}.Compute(val1, val2, operator)
+				if err != nil {
+					return 0, fmt.Errorf("error while computing: %v", err)
+				}
+				values = append(values, result)
+			}
+			if len(operators) > 0 && operators[len(operators)-1] == "(" {
+				operators = operators[:len(operators)-1]
+			} else {
+				return 0, fmt.Errorf("mismatched parentheses")
+			}
 		}
 	}
+
+	for len(operators) > 0 {
+		val2 := values[len(values)-1]
+		values = values[:len(values)-1]
+		val1 := values[len(values)-1]
+		values = values[:len(values)-1]
+		operator := operators[len(operators)-1]
+		operators = operators[:len(operators)-1]
+
+		result, err := calculator.BasicCalculator{}.Compute(val1, val2, operator)
+		if err != nil {
+			return 0, fmt.Errorf("error while computing: %v", err)
+		}
+		values = append(values, result)
+	}
+
+	return values[0], nil
 }
 
-func isValidOperator(operator string) bool {
-	validOperators := []string{"+", "-", "*", "/", "%", "^"}
-	for _, validOp := range validOperators {
-		if operator == validOp {
-			return true
-		}
+func tokenize(expression string) []string {
+	re := regexp.MustCompile(`\d+(\.\d+)?|[+\-*/%^()]+`)
+	matches := re.FindAllString(expression, -1)
+	return matches
+}
+
+func isNumber(token string) bool {
+	_, err := strconv.ParseFloat(token, 64)
+	return err == nil
+}
+
+func isOperator(token string) bool {
+	operators := "+-*/%^"
+	return strings.Contains(operators, token)
+}
+
+func precedence(operator string) int {
+	switch operator {
+	case "^":
+		return 3
+	case "*", "/":
+		return 2
+	case "+", "-":
+		return 1
+	case "%":
+		return 2
+	default:
+		return 0
 	}
-	return false
 }
 
 func printResult(result float64) {
