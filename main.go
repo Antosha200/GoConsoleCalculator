@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 )
 
 func main() {
@@ -25,16 +27,22 @@ func main() {
 			os.Exit(0)
 		}
 
-		_, err = fmt.Sscanf(input, "%f", &a)
+		a, err = validateAndParseFloat(input)
 		if err != nil {
 			fmt.Println("Invalid number. Please enter a valid number.")
 			continue
 		}
 
 		fmt.Print("Enter second number: ")
-		_, err = fmt.Scan(&b)
+		_, err = fmt.Scan(&input)
 		if err != nil {
 			log.Fatalf("Invalid input for second number: %v", err)
+		}
+
+		b, err = validateAndParseFloat(input)
+		if err != nil {
+			fmt.Println("Invalid number. Please enter a valid number.")
+			continue
 		}
 
 		operator = getOperatorFromUser()
@@ -48,6 +56,15 @@ func main() {
 
 		printResult(result)
 	}
+}
+
+func validateAndParseFloat(input string) (float64, error) {
+	input = strings.TrimSpace(input)
+	value, err := strconv.ParseFloat(input, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number format")
+	}
+	return value, nil
 }
 
 func getOperatorFromUser() string {
